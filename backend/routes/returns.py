@@ -61,11 +61,12 @@ async def submit_return(request: ReturnRequest):
         product["original_price"]
     )
 
-    # Calculate green credits for this return
-    credits_earned = calculate_green_credits(
+    # FIX 6: credits = condition_score × disposition multiplier
+    credits_info = calculate_green_credits(
         recommendation["disposition"],
-        product["original_price"]
+        condition["condition_score"]
     )
+    credits_earned = credits_info["credits_awarded"]
 
     # Enhanced: Calculate sustainability impact
     sustainability = calculate_sustainability_impact(
@@ -81,8 +82,14 @@ async def submit_return(request: ReturnRequest):
             product["category"], condition["grade"]
         )
 
+    # FEATURE C: Wear Pattern Mismatch Flag
+    # If the user claims minimal use but condition score is low, flag it.
+    minimal_use_reasons = ["no longer needed", "barely used", "changed mind", "unused gift", "decluttering"]
+    reason_implies_minimal_use = any(kw in request.reason.lower() for kw in minimal_use_reasons)
+    wear_mismatch_detected = reason_implies_minimal_use and condition["condition_score"] < 60
+
     # Determine if manual review is needed
-    requires_manual_review = trust_score < 50
+    requires_manual_review = trust_score < 50 or wear_mismatch_detected
 
     # Create return record
     return_id = f"RET-{uuid.uuid4().hex[:8].upper()}"
@@ -96,10 +103,13 @@ async def submit_return(request: ReturnRequest):
         "user_trust_score": trust_score,
         "requires_manual_review": requires_manual_review,
         "credits_earned": credits_earned,
+        "credits_breakdown": credits_info,
         "sustainability_impact": sustainability,
         "next_best_owners": next_best_owners,
         "submitted_at": datetime.now().isoformat(),
-        "reason": request.reason
+        "reason": request.reason,
+        "wear_mismatch_detected": wear_mismatch_detected,
+        "category": product["category"],
     }
 
     RETURNS_HISTORY.append(return_record)
@@ -131,11 +141,12 @@ async def sell_unused_item(request: SellItemRequest):
         request.original_price
     )
 
-    # Green credits
-    credits_earned = calculate_green_credits(
+    # FIX 6: credits = condition_score × disposition multiplier
+    sell_credits_info = calculate_green_credits(
         recommendation["disposition"],
-        request.original_price
+        condition["condition_score"]
     )
+    sell_credits_earned = sell_credits_info["credits_awarded"]
 
     # Sustainability impact
     sustainability = calculate_sustainability_impact(
@@ -161,11 +172,13 @@ async def sell_unused_item(request: SellItemRequest):
         "recommendation": recommendation,
         "user_trust_score": trust_score,
         "requires_manual_review": False,
-        "credits_earned": credits_earned,
+        "credits_earned": sell_credits_earned,
+        "credits_breakdown": sell_credits_info,
         "sustainability_impact": sustainability,
         "next_best_owners": next_best_owners,
         "submitted_at": datetime.now().isoformat(),
-        "reason": request.reason
+        "reason": request.reason,
+        "category": request.category,
     }
 
     RETURNS_HISTORY.append(record)

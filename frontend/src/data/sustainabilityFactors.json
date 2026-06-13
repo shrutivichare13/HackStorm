@@ -1,0 +1,11 @@
+{
+  "Electronics":       { "avgWeightKg": 1.2, "carbonFactor": 2.73 },
+  "Clothing":          { "avgWeightKg": 0.4, "carbonFactor": 3.5  },
+  "Home & Kitchen":    { "avgWeightKg": 2.5, "carbonFactor": 1.8  },
+  "Books":             { "avgWeightKg": 0.8, "carbonFactor": 2.0  },
+  "Toys & Games":      { "avgWeightKg": 1.5, "carbonFactor": 2.0  },
+  "Sports & Outdoors": { "avgWeightKg": 2.0, "carbonFactor": 2.0  },
+  "Beauty":            { "avgWeightKg": 0.6, "carbonFactor": 2.0  },
+  "Automotive":        { "avgWeightKg": 4.0, "carbonFactor": 2.0  },
+  "Other":             { "avgWeightKg": 1.0, "carbonFactor": 2.0  }
+}

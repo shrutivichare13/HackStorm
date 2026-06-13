@@ -34,10 +34,16 @@ export interface Explainability {
   recommended_action: string;
   factors: string[];
   demand_score: number;
-  estimated_resale_value: number;
+  // FIX 3: unified value set — all four exposed from backend
+  resale_as_is: number;
+  show_resale_as_is: number | null;
   refurbishment_cost: number;
-  donation_impact_score: number;
+  resale_after_refurb: number;
+  net_after_refurb: number;
   recycling_value: number;
+  // legacy alias kept so existing code doesn't break
+  estimated_resale_value: number;
+  donation_impact_score: number;
 }
 
 // ============ Sustainability Impact ============
@@ -46,6 +52,20 @@ export interface SustainabilityImpact {
   waste_prevented_kg: number;
   carbon_saved_kg: number;
   green_credits_earned: number;
+  // FIX 7: derivation metadata for tooltip
+  category?: string;
+  avg_weight_kg?: number;
+  carbon_factor?: number;
+  waste_multiplier?: number;
+}
+
+// ============ Green Credits Breakdown (FIX 6) ============
+export interface CreditsBreakdown {
+  credits_awarded: number;
+  condition_score: number;
+  multiplier: number;
+  credits_raw: number;
+  disposition: string;
 }
 
 // ============ Next Best Owner ============
@@ -86,10 +106,15 @@ export interface ReturnResponse {
   user_trust_score: number;
   requires_manual_review: boolean;
   credits_earned: number;
+  credits_breakdown?: CreditsBreakdown;
   sustainability_impact?: SustainabilityImpact;
   next_best_owners?: NextBestOwner[];
   submitted_at: string;
   reason: string;
+  // FEATURE C: optional wear mismatch flag (default false)
+  wear_mismatch_detected?: boolean;
+  // optional category for transparency panel
+  category?: string;
 }
 
 export interface MarketplaceListing {
@@ -107,6 +132,15 @@ export interface MarketplaceListing {
   badges?: string[];
   seller_id: string;
   listed_date: string;
+  // FEATURE A: optional grading details for DecisionTransparencyPanel modal
+  gradingDetails?: {
+    conditionScore: number;
+    grade: 'A' | 'B' | 'C' | 'D';
+    resaleValue: number | null;
+    refurbishCost: number | null;
+    recycleValue: number | null;
+    demandScore?: number;
+  } | null;
 }
 
 export interface P2PListing {
@@ -224,4 +258,19 @@ export interface SellItemRequest {
   reason: string;
   description?: string;
   image_url?: string;
+}
+
+// ============ Multi-Angle Capture (Problems 2–7) ============
+
+export interface CaptureVerificationResult {
+  allCaptured: boolean;
+  combinedScore: number;
+  overallTier: 'passed' | 'uncertain' | 'failed';
+  detectedLabel: string;
+  confidence: number;
+  functionalVerification?: {
+    powerStatus: 'Working' | 'Not Working' | 'Unknown';
+    demoVideoPath: string | null;
+    reportedNotWorking: boolean;
+  };
 }

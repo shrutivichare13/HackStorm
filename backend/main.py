@@ -8,7 +8,7 @@ recover inventory value, prevent fraud, and improve sustainability.
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
-from routes import products, returns, marketplace, peer_to_peer, green_credits, analytics, verification
+from routes import products, returns, marketplace, peer_to_peer, green_credits, analytics, verification, analysis
 
 app = FastAPI(
     title="Amazon Second Life Commerce API",
@@ -33,6 +33,7 @@ app.include_router(peer_to_peer.router, prefix="/api/peer-to-peer", tags=["Peer-
 app.include_router(green_credits.router, prefix="/api/green-credits", tags=["Green Credits"])
 app.include_router(analytics.router, prefix="/api/analytics", tags=["Analytics"])
 app.include_router(verification.router, prefix="/api/verification", tags=["Verification"])
+app.include_router(analysis.router, prefix="/api/analysis", tags=["AI Product Analysis"])
 
 
 @app.get("/")

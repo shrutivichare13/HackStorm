@@ -20,20 +20,21 @@ CONDITION_MULTIPLIERS = {
     "D": 0.25
 }
 
-# Weight estimates per category (kg) for sustainability calculations
-CATEGORY_WEIGHTS = {
-    "Electronics": 1.2,
-    "Clothing": 0.5,
-    "Home & Kitchen": 3.5,
-    "Books": 0.8,
-    "Toys & Games": 1.5,
-    "Sports & Outdoors": 2.0,
-    "Beauty": 0.6,
-    "Automotive": 4.0,
+# ============================================================
+# FIX 7: Sustainability factors lookup table
+# (mirrors frontend sustainabilityFactors.json exactly)
+# ============================================================
+SUSTAINABILITY_FACTORS = {
+    "Electronics":      {"avg_weight_kg": 1.2, "carbon_factor": 2.73},
+    "Clothing":         {"avg_weight_kg": 0.4, "carbon_factor": 3.5},
+    "Home & Kitchen":   {"avg_weight_kg": 2.5, "carbon_factor": 1.8},
+    "Books":            {"avg_weight_kg": 0.8, "carbon_factor": 2.0},
+    "Toys & Games":     {"avg_weight_kg": 1.5, "carbon_factor": 2.0},
+    "Sports & Outdoors":{"avg_weight_kg": 2.0, "carbon_factor": 2.0},
+    "Beauty":           {"avg_weight_kg": 0.6, "carbon_factor": 2.0},
+    "Automotive":       {"avg_weight_kg": 4.0, "carbon_factor": 2.0},
 }
-
-# CO2 factor per kg of waste diverted (kg CO2 saved)
-CO2_FACTOR = 2.73
+DEFAULT_SUSTAINABILITY = {"avg_weight_kg": 1.0, "carbon_factor": 2.0}
 
 # Demand factors by category (simulated market demand)
 DEMAND_FACTORS = {
@@ -89,13 +90,9 @@ DETECTED_ISSUES_MAP = {
 def assess_condition(product_category: str, product_value: float, reason: str) -> dict:
     """
     Simulate AI condition assessment based on product category and return reason.
-    Returns condition score, grade, label, detected issues, visual condition analysis,
-    and functionality estimate.
     """
-    # Base score influenced by category and reason
     base_score = random.randint(40, 95)
 
-    # Adjust based on return reason
     reason_lower = reason.lower()
     if "defective" in reason_lower or "broken" in reason_lower:
         base_score = min(base_score, random.randint(20, 45))
@@ -106,19 +103,10 @@ def assess_condition(product_category: str, product_value: float, reason: str) -
     elif "changed mind" in reason_lower or "no longer needed" in reason_lower:
         base_score = random.randint(80, 98)
 
-    # Determine grade from score
     grade, label = _score_to_grade(base_score)
-
-    # Generate detected issues based on grade
     issues = _generate_issues(product_category, grade)
-
-    # Generate visual report
     visual_report = _generate_visual_report(grade, label, issues, product_category)
-
-    # Enhanced: Visual condition analysis
     visual_analysis = _generate_visual_analysis(grade, product_category)
-
-    # Enhanced: Functionality estimate
     functionality = _estimate_functionality(base_score, reason)
 
     return {
@@ -132,6 +120,46 @@ def assess_condition(product_category: str, product_value: float, reason: str) -
     }
 
 
+# ============================================================
+# FIX 3: Consistent decision engine with unified value calc
+# ============================================================
+def _compute_values(grade: str, category: str, product_value: float) -> dict:
+    """
+    Compute all monetary values used by both the decision logic AND
+    the explainability panel — single source of truth.
+
+    Returns:
+        resale_as_is           – what the item fetches today, as-is
+        refurbish_cost         – cost to refurbish
+        resale_after_refurb    – resale value if refurbished
+        net_after_refurb       – resale_after_refurb - refurbish_cost
+        recycle_value          – scrap/parts value
+    """
+    demand = DEMAND_FACTORS.get(category, 1.0)
+    cond_mult = CONDITION_MULTIPLIERS.get(grade, 0.5)
+
+    resale_as_is = round(product_value * cond_mult * demand, 2)
+
+    # Refurbishment cost: 15% of value for A/B, 35% for C/D
+    refurb_pct = 0.15 if grade in ("A", "B") else 0.35
+    refurbish_cost = round(product_value * refurb_pct, 2)
+
+    # After refurb the item grades up by one tier
+    refurb_grade_mult = {"A": 0.85, "B": 0.85, "C": 0.70, "D": 0.50}
+    resale_after_refurb = round(product_value * refurb_grade_mult.get(grade, 0.70) * demand, 2)
+
+    net_after_refurb = round(resale_after_refurb - refurbish_cost, 2)
+    recycle_value = round(product_value * 0.08, 2)
+
+    return {
+        "resale_as_is": resale_as_is,
+        "refurbish_cost": refurbish_cost,
+        "resale_after_refurb": resale_after_refurb,
+        "net_after_refurb": net_after_refurb,
+        "recycle_value": recycle_value,
+    }
+
+
 def recommend_disposition(
     condition_score: int,
     grade: str,
@@ -139,25 +167,55 @@ def recommend_disposition(
     product_value: float
 ) -> dict:
     """
-    Enhanced AI-powered disposition recommendation with explainability.
-    Evaluates condition, category, demand, resale value, refurbishment cost,
-    donation impact, and recycling value. Returns recommended action with
-    detailed reasoning factors.
+    FIX 3: Disposition is now derived deterministically from the computed
+    values — the decision always matches the displayed numbers.
     """
-    disposition, explanation, confidence = _determine_disposition(
-        condition_score, grade, category, product_value
-    )
+    vals = _compute_values(grade, category, product_value)
+    resale_as_is    = vals["resale_as_is"]
+    net_after_refurb = vals["net_after_refurb"]
+    recycle_value    = vals["recycle_value"]
 
-    # Calculate resale price using dynamic pricing formula
-    resale_price = None
-    if disposition in ["Resell", "Peer-to-Peer Exchange"]:
-        condition_mult = CONDITION_MULTIPLIERS.get(grade, 0.5)
-        demand_factor = DEMAND_FACTORS.get(category, 1.0)
-        resale_price = round(product_value * condition_mult * demand_factor, 2)
+    RESALE_FLOOR = 50.0   # below this, don't recommend bare resale
 
-    # Enhanced: Generate explainability factors for the decision
+    # Rule-based decision — consistent with displayed numbers
+    if net_after_refurb > resale_as_is and net_after_refurb > recycle_value:
+        disposition = "Refurbish"
+        explanation = (
+            f"Net recovery after refurbishment (₹{net_after_refurb:.0f}) exceeds "
+            f"direct resale (₹{resale_as_is:.0f}) and recycling (₹{recycle_value:.0f})."
+        )
+        confidence = 0.87
+        resale_price = None
+    elif resale_as_is >= RESALE_FLOOR and resale_as_is >= net_after_refurb and resale_as_is > recycle_value:
+        if product_value > 200 or grade in ("A",):
+            disposition = "Resell"
+        else:
+            disposition = "Peer-to-Peer Exchange"
+        explanation = (
+            f"Direct resale value (₹{resale_as_is:.0f}) is the strongest recovery path."
+        )
+        confidence = 0.91
+        resale_price = resale_as_is
+    elif condition_score >= 40:
+        # Usable but low value — donate
+        disposition = "Donate"
+        explanation = (
+            "Resale value is low and refurbishment cost outweighs recovery. "
+            "Donation provides social impact and sustainability credits."
+        )
+        confidence = 0.78
+        resale_price = None
+    else:
+        disposition = "Recycle"
+        explanation = (
+            "Item condition does not support resale or refurbishment. "
+            "Responsible recycling recovers raw material value."
+        )
+        confidence = 0.85
+        resale_price = None
+
     explainability = _generate_explainability(
-        condition_score, grade, category, product_value, disposition
+        condition_score, grade, category, product_value, disposition, vals
     )
 
     return {
@@ -165,7 +223,7 @@ def recommend_disposition(
         "explanation": explanation,
         "confidence": confidence,
         "resale_price": resale_price,
-        "explainability": explainability
+        "explainability": explainability,
     }
 
 
@@ -186,35 +244,27 @@ def calculate_trust_score_delta(
     if not verification_code_valid:
         delta -= 20
     if is_live and not is_duplicate and timestamp_valid and verification_code_valid:
-        delta += 2  # Small boost for honest behavior
+        delta += 2
     return delta
 
 
 def detect_fraud(image_hash: str, timestamp: str, verification_code: str) -> dict:
-    """
-    Simulate fraud detection via image hashing, timestamp validation,
-    and verification code checking.
-    """
+    """Simulate fraud detection via image hashing, timestamp and code validation."""
     from mock_data.database import IMAGE_HASH_STORE
 
-    # Check for duplicate image
     is_duplicate = image_hash in IMAGE_HASH_STORE
     if not is_duplicate:
         IMAGE_HASH_STORE.add(image_hash)
 
-    # Validate timestamp (must be within last 5 minutes)
     try:
         ts = datetime.fromisoformat(timestamp.replace("Z", "+00:00"))
         now = datetime.now(ts.tzinfo) if ts.tzinfo else datetime.now()
         time_diff = abs((now - ts).total_seconds())
-        timestamp_valid = time_diff < 300  # 5 minutes
+        timestamp_valid = time_diff < 300
     except (ValueError, TypeError):
         timestamp_valid = False
 
-    # Verification code validation (simulated - just check non-empty)
     code_valid = bool(verification_code and len(verification_code) == 6)
-
-    # Determine if image is live (simulated)
     is_live = not is_duplicate and timestamp_valid
 
     return {
@@ -229,19 +279,33 @@ def detect_fraud(image_hash: str, timestamp: str, verification_code: str) -> dic
     }
 
 
-def calculate_green_credits(disposition: str, product_value: float) -> int:
-    """Calculate green credits earned based on disposition type."""
-    credit_map = {
-        "Donate": 100,
-        "Recycle": 50,
-        "Refurbish": 85,
-        "Resell": 60,
-        "Peer-to-Peer Exchange": 70
+# ============================================================
+# FIX 6: Green credits formula – condition_score × multiplier
+# ============================================================
+DISPOSITION_CREDIT_MULTIPLIERS = {
+    "Donate":               0.9,
+    "Recycle":              0.8,
+    "Resell":               0.7,
+    "Refurbish":            0.7,
+    "Peer-to-Peer Exchange": 0.8,
+}
+
+def calculate_green_credits(disposition: str, condition_score: int) -> dict:
+    """
+    FIX 6: Credits = round(condition_score × dispositionMultiplier).
+    Returns a dict with the full breakdown so the UI can show the formula.
+    `condition_score` replaces the old `product_value` parameter.
+    """
+    multiplier = DISPOSITION_CREDIT_MULTIPLIERS.get(disposition, 0.7)
+    credits_raw = condition_score * multiplier
+    credits_awarded = round(credits_raw)
+    return {
+        "credits_awarded": credits_awarded,
+        "condition_score": condition_score,
+        "multiplier": multiplier,
+        "credits_raw": round(credits_raw, 1),
+        "disposition": disposition,
     }
-    base_credits = credit_map.get(disposition, 30)
-    # Bonus for higher value items
-    value_bonus = int(product_value / 100) * 5
-    return base_credits + value_bonus
 
 
 def get_return_risk(product_id: str, category: str) -> dict:
@@ -251,16 +315,11 @@ def get_return_risk(product_id: str, category: str) -> dict:
     if product_id in RETURN_RISK_DATA:
         return RETURN_RISK_DATA[product_id]
 
-    # Generate default risk data for unknown products
     risk_score = random.randint(10, 50)
     return {
         "product_id": product_id,
         "risk_score": risk_score,
-        "common_return_reasons": [
-            "Not as described",
-            "Changed mind",
-            "Found better price"
-        ],
+        "common_return_reasons": ["Not as described", "Changed mind", "Found better price"],
         "recommendations": [
             "Read all product specifications",
             "Check customer reviews and photos",
@@ -274,7 +333,6 @@ def get_return_risk(product_id: str, category: str) -> dict:
 # ============ Private Helper Functions ============
 
 def _score_to_grade(score: int) -> Tuple[str, str]:
-    """Convert numeric score to letter grade and label."""
     if score >= 85:
         return "A", "Like New"
     elif score >= 65:
@@ -286,209 +344,56 @@ def _score_to_grade(score: int) -> Tuple[str, str]:
 
 
 def _generate_issues(category: str, grade: str) -> List[str]:
-    """Generate detected issues based on category and grade."""
     available_issues = DETECTED_ISSUES_MAP.get(category, ["General wear"])
-
-    # Number of issues correlates inversely with grade
     issue_counts = {"A": (0, 1), "B": (1, 3), "C": (2, 4), "D": (3, 5)}
     min_issues, max_issues = issue_counts.get(grade, (1, 3))
     num_issues = random.randint(min_issues, min(max_issues, len(available_issues)))
-
     return random.sample(available_issues, num_issues) if num_issues > 0 else []
 
 
 def _generate_visual_report(grade: str, label: str, issues: List[str], category: str) -> str:
-    """Generate a human-readable visual condition report."""
     report_parts = [
         f"Condition Grade: {grade} ({label})",
         f"Category: {category}",
         f"Overall Assessment: {'Excellent' if grade == 'A' else 'Good' if grade == 'B' else 'Fair' if grade == 'C' else 'Poor'} condition"
     ]
-
     if issues:
         report_parts.append(f"Detected Issues: {', '.join(issues)}")
     else:
         report_parts.append("No significant issues detected")
-
     return " | ".join(report_parts)
 
 
-def _determine_disposition(
-    score: int, grade: str, category: str, value: float
-) -> Tuple[str, str, float]:
-    """Determine optimal disposition based on multiple factors."""
-    if grade == "A":
-        if value > 200:
-            return (
-                "Resell",
-                f"Product is in {grade} condition (Like New) with high market value. "
-                f"Recommended for certified resale at premium recovery rate.",
-                0.94
-            )
-        else:
-            return (
-                "Peer-to-Peer Exchange",
-                f"Product is in excellent condition. Lower value items recover well "
-                f"through peer-to-peer marketplace with lower overhead costs.",
-                0.88
-            )
-    elif grade == "B":
-        if value > 300:
-            return (
-                "Refurbish",
-                f"Product shows minor wear but has high original value. "
-                f"Professional refurbishment will maximize recovery value.",
-                0.85
-            )
-        else:
-            return (
-                "Resell",
-                f"Product in good condition with moderate value. "
-                f"Can be resold as-is with appropriate condition disclosure.",
-                0.82
-            )
-    elif grade == "C":
-        if category in ["Electronics", "Home & Kitchen"]:
-            return (
-                "Refurbish",
-                f"Product needs attention but category supports cost-effective refurbishment. "
-                f"Expected recovery after refurb: {int(value * 0.6)}.",
-                0.75
-            )
-        else:
-            return (
-                "Donate",
-                f"Product condition is fair and refurbishment cost exceeds recovery value. "
-                f"Donation provides tax benefit and sustainability credits.",
-                0.78
-            )
-    else:  # Grade D
-        if category == "Electronics":
-            return (
-                "Recycle",
-                f"Product is significantly damaged. Electronic components can be "
-                f"responsibly recycled to recover valuable materials.",
-                0.90
-            )
-        else:
-            return (
-                "Recycle",
-                f"Product condition does not support resale or refurbishment. "
-                f"Recycling ensures materials are properly recovered.",
-                0.85
-            )
-
-
-# ============ Enhanced Feature Functions ============
-
-def calculate_sustainability_impact(disposition: str, category: str, product_value: float) -> dict:
-    """
-    Calculate sustainability impact metrics for a transaction.
-    Returns waste prevented, carbon saved, and green credits earned.
-    """
-    weight = CATEGORY_WEIGHTS.get(category, 1.0)
-
-    # Waste prevented depends on disposition
-    waste_multiplier = {
-        "Resell": 1.0,
-        "Refurbish": 0.9,
-        "Donate": 0.85,
-        "Recycle": 0.6,
-        "Peer-to-Peer Exchange": 1.0
-    }
-    waste_prevented = round(weight * waste_multiplier.get(disposition, 0.7), 2)
-    carbon_saved = round(waste_prevented * CO2_FACTOR, 2)
-    credits = calculate_green_credits(disposition, product_value)
-
-    return {
-        "waste_prevented_kg": waste_prevented,
-        "carbon_saved_kg": carbon_saved,
-        "green_credits_earned": credits
-    }
-
-
-def generate_next_best_owners(category: str, condition_grade: str) -> list:
-    """
-    Generate mock nearby buyers for 'Next Best Owner' matching.
-    Simulates local matching to reduce logistics cost and carbon footprint.
-    """
-    mock_buyers = [
-        {"name": "Neha S.", "distance_km": 2.3, "interest_match": 94, "trust_score": 88},
-        {"name": "Rahul M.", "distance_km": 5.1, "interest_match": 87, "trust_score": 91},
-        {"name": "Ananya K.", "distance_km": 7.8, "interest_match": 82, "trust_score": 76},
-        {"name": "Priya D.", "distance_km": 3.5, "interest_match": 91, "trust_score": 85},
-        {"name": "Arjun P.", "distance_km": 4.2, "interest_match": 78, "trust_score": 92},
-        {"name": "Kavitha R.", "distance_km": 6.0, "interest_match": 85, "trust_score": 79},
-    ]
-
-    # Select 3 buyers randomly and sort by distance
-    selected = random.sample(mock_buyers, min(3, len(mock_buyers)))
-    selected.sort(key=lambda x: x["distance_km"])
-
-    # Add local match badge for buyers within 5km
-    for buyer in selected:
-        buyer["local_match"] = buyer["distance_km"] <= 5.0
-
-    return selected
-
-
 def _generate_visual_analysis(grade: str, category: str) -> dict:
-    """
-    Generate enhanced visual condition analysis detecting specific issues:
-    scratches, broken parts, color fading, damaged packaging, missing accessories.
-    """
-    # Probabilities of each defect type based on grade
     defect_probabilities = {
         "A": {"scratches": 0.1, "broken_parts": 0.0, "color_fading": 0.05, "damaged_packaging": 0.1, "missing_accessories": 0.05},
         "B": {"scratches": 0.5, "broken_parts": 0.05, "color_fading": 0.2, "damaged_packaging": 0.3, "missing_accessories": 0.15},
         "C": {"scratches": 0.7, "broken_parts": 0.2, "color_fading": 0.4, "damaged_packaging": 0.5, "missing_accessories": 0.35},
         "D": {"scratches": 0.9, "broken_parts": 0.6, "color_fading": 0.5, "damaged_packaging": 0.7, "missing_accessories": 0.6},
     }
-
     probs = defect_probabilities.get(grade, defect_probabilities["C"])
-
-    analysis = {
-        "scratches": random.random() < probs["scratches"],
-        "broken_parts": random.random() < probs["broken_parts"],
-        "color_fading": random.random() < probs["color_fading"],
-        "damaged_packaging": random.random() < probs["damaged_packaging"],
-        "missing_accessories": random.random() < probs["missing_accessories"],
-    }
-
-    # Generate severity for detected issues
     detected = []
     severity_map = {"A": "Minor", "B": "Moderate", "C": "Significant", "D": "Severe"}
     severity = severity_map.get(grade, "Moderate")
 
-    if analysis["scratches"]:
+    if random.random() < probs["scratches"]:
         detected.append({"type": "Scratches", "severity": severity, "location": "Surface"})
-    if analysis["broken_parts"]:
+    if random.random() < probs["broken_parts"]:
         detected.append({"type": "Broken Parts", "severity": severity, "location": "Structural"})
-    if analysis["color_fading"]:
+    if random.random() < probs["color_fading"]:
         detected.append({"type": "Color Fading", "severity": severity, "location": "Exterior"})
-    if analysis["damaged_packaging"]:
+    if random.random() < probs["damaged_packaging"]:
         detected.append({"type": "Damaged Packaging", "severity": severity, "location": "Box/Case"})
-    if analysis["missing_accessories"]:
+    if random.random() < probs["missing_accessories"]:
         detected.append({"type": "Missing Accessories", "severity": severity, "location": "Contents"})
 
-    return {
-        "defects_detected": detected,
-        "total_defects": len(detected),
-        "overall_severity": severity
-    }
+    return {"defects_detected": detected, "total_defects": len(detected), "overall_severity": severity}
 
 
 def _estimate_functionality(score: int, reason: str) -> str:
-    """
-    Estimate product functionality based on condition score and return reason.
-    Returns: 'Likely Working', 'Needs Inspection', or 'Likely Faulty'
-    """
     reason_lower = reason.lower()
-
     if "defective" in reason_lower or "broken" in reason_lower:
-        if score < 30:
-            return "Likely Faulty"
-        return "Needs Inspection"
+        return "Likely Faulty" if score < 30 else "Needs Inspection"
     elif score >= 75:
         return "Likely Working"
     elif score >= 45:
@@ -498,22 +403,30 @@ def _estimate_functionality(score: int, reason: str) -> str:
 
 
 def _generate_explainability(
-    score: int, grade: str, category: str, value: float, disposition: str
+    score: int, grade: str, category: str, value: float, disposition: str,
+    vals: dict = None
 ) -> dict:
     """
-    Generate explainability factors for the disposition decision.
-    Shows why the AI recommended this particular action.
+    FIX 3: Uses pre-computed vals dict — same numbers shown in the
+    DecisionTransparencyPanel and in the decision logic itself.
     """
+    if vals is None:
+        vals = _compute_values(grade, category, value)
+
     demand_score = int(DEMAND_FACTORS.get(category, 1.0) * 100)
-    condition_mult = CONDITION_MULTIPLIERS.get(grade, 0.5)
-    estimated_resale = round(value * condition_mult * DEMAND_FACTORS.get(category, 1.0), 2)
-    refurbishment_cost = round(value * (0.15 if grade in ["A", "B"] else 0.35), 2)
-    recycling_value = round(value * 0.08, 2)
+    resale_as_is       = vals["resale_as_is"]
+    refurbish_cost     = vals["refurbish_cost"]
+    resale_after_refurb = vals["resale_after_refurb"]
+    net_after_refurb   = vals["net_after_refurb"]
+    recycle_value      = vals["recycle_value"]
+
+    RESALE_FLOOR = 50.0
+    show_resale_as_is = resale_as_is if resale_as_is >= RESALE_FLOOR else None
 
     factors = []
-    if demand_score >= 90:
+    if demand_score >= 100:
         factors.append("✓ High demand")
-    elif demand_score >= 80:
+    elif demand_score >= 85:
         factors.append("✓ Moderate demand")
     else:
         factors.append("△ Low demand")
@@ -525,16 +438,16 @@ def _generate_explainability(
     else:
         factors.append("✗ Poor condition")
 
-    if estimated_resale > value * 0.5:
+    if resale_as_is > value * 0.5:
         factors.append("✓ Strong resale value")
-    elif estimated_resale > value * 0.3:
+    elif resale_as_is > value * 0.3:
         factors.append("△ Moderate resale value")
     else:
         factors.append("✗ Low resale value")
 
-    if refurbishment_cost < value * 0.2:
+    if refurbish_cost < value * 0.2:
         factors.append("✓ Low refurbishment requirement")
-    elif refurbishment_cost < value * 0.3:
+    elif refurbish_cost < value * 0.3:
         factors.append("△ Moderate refurbishment cost")
     else:
         factors.append("✗ High refurbishment cost")
@@ -543,8 +456,61 @@ def _generate_explainability(
         "recommended_action": disposition.upper(),
         "factors": factors,
         "demand_score": demand_score,
-        "estimated_resale_value": estimated_resale,
-        "refurbishment_cost": refurbishment_cost,
+        # FIX 3: all four values exported for the UI
+        "resale_as_is": resale_as_is,
+        "show_resale_as_is": show_resale_as_is,   # None if below floor
+        "refurbishment_cost": refurbish_cost,
+        "resale_after_refurb": resale_after_refurb,
+        "net_after_refurb": net_after_refurb,
+        "recycling_value": recycle_value,
+        # keep legacy field names so existing UI doesn't break
+        "estimated_resale_value": resale_as_is,
         "donation_impact_score": random.randint(60, 95),
-        "recycling_value": recycling_value
     }
+
+
+# ============================================================
+# FIX 7: Sustainability using lookup table
+# ============================================================
+def calculate_sustainability_impact(disposition: str, category: str, product_value: float) -> dict:
+    """
+    FIX 7: Uses SUSTAINABILITY_FACTORS lookup table — no more arbitrary weights.
+    Returns derivation metadata so the UI can show ℹ️ tooltip.
+    """
+    factors = SUSTAINABILITY_FACTORS.get(category, DEFAULT_SUSTAINABILITY)
+    avg_weight_kg = factors["avg_weight_kg"]
+    carbon_factor = factors["carbon_factor"]
+
+    waste_multiplier = {
+        "Resell": 1.0, "Refurbish": 0.9, "Donate": 0.85,
+        "Recycle": 0.6, "Peer-to-Peer Exchange": 1.0
+    }
+    mult = waste_multiplier.get(disposition, 0.7)
+    waste_prevented = round(avg_weight_kg * mult, 2)
+    carbon_saved = round(waste_prevented * carbon_factor, 2)
+
+    return {
+        "waste_prevented_kg": waste_prevented,
+        "carbon_saved_kg": carbon_saved,
+        # derivation metadata for tooltip
+        "category": category,
+        "avg_weight_kg": avg_weight_kg,
+        "carbon_factor": carbon_factor,
+        "waste_multiplier": mult,
+    }
+
+
+def generate_next_best_owners(category: str, condition_grade: str) -> list:
+    mock_buyers = [
+        {"name": "Neha S.", "distance_km": 2.3, "interest_match": 94, "trust_score": 88},
+        {"name": "Rahul M.", "distance_km": 5.1, "interest_match": 87, "trust_score": 91},
+        {"name": "Ananya K.", "distance_km": 7.8, "interest_match": 82, "trust_score": 76},
+        {"name": "Priya D.", "distance_km": 3.5, "interest_match": 91, "trust_score": 85},
+        {"name": "Arjun P.", "distance_km": 4.2, "interest_match": 78, "trust_score": 92},
+        {"name": "Kavitha R.", "distance_km": 6.0, "interest_match": 85, "trust_score": 79},
+    ]
+    selected = random.sample(mock_buyers, min(3, len(mock_buyers)))
+    selected.sort(key=lambda x: x["distance_km"])
+    for buyer in selected:
+        buyer["local_match"] = buyer["distance_km"] <= 5.0
+    return selected

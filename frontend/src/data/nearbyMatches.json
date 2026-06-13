@@ -1,0 +1,20 @@
+{
+  "buyers": [
+    { "name": "Neha S.", "distance_km": 2.3, "type": "buyer" },
+    { "name": "Rahul M.", "distance_km": 5.1, "type": "buyer" },
+    { "name": "Ananya K.", "distance_km": 7.8, "type": "buyer" },
+    { "name": "Priya D.", "distance_km": 3.5, "type": "buyer" },
+    { "name": "Arjun P.", "distance_km": 4.2, "type": "buyer" },
+    { "name": "Kavitha R.", "distance_km": 6.0, "type": "buyer" }
+  ],
+  "ngos": [
+    { "name": "Asha Foundation", "distance_km": 3.8, "type": "ngo" },
+    { "name": "GreenHands NGO", "distance_km": 6.2, "type": "ngo" },
+    { "name": "CareBridge Trust", "distance_km": 8.4, "type": "ngo" }
+  ],
+  "recyclingCenters": [
+    { "name": "EcoRecycle Hub", "distance_km": 4.5, "type": "recycling" },
+    { "name": "GreenCycle Centre", "distance_km": 7.1, "type": "recycling" },
+    { "name": "TechReclaim Station", "distance_km": 9.0, "type": "recycling" }
+  ]
+}

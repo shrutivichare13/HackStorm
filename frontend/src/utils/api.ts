@@ -36,3 +36,43 @@ export async function getRecommendations(userId: string = 'user_001') {
 export async function getSustainabilityImpact(userId: string = 'user_001') {
   return fetchApi(`/green-credits/${userId}/impact`);
 }
+
+// ── AI Product Analysis endpoints ────────────────────────────────────────────
+
+export interface ProductAnalysisRequest {
+  product_id: string;
+  captured_image_hash: string;
+  captured_timestamp: string;
+  verification_code?: string;
+}
+
+export async function runFullAnalysis(request: ProductAnalysisRequest) {
+  return fetchApi('/analysis/full', {
+    method: 'POST',
+    body: JSON.stringify(request),
+  });
+}
+
+export async function verifyProduct(request: { product_id: string; captured_image_hash: string; captured_timestamp: string }) {
+  return fetchApi('/analysis/verify', {
+    method: 'POST',
+    body: JSON.stringify(request),
+  });
+}
+
+export async function analyzeCondition(request: {
+  product_id: string;
+  product_name: string;
+  product_category: string;
+  product_value: number;
+  captured_image_hash: string;
+}) {
+  return fetchApi('/analysis/condition', {
+    method: 'POST',
+    body: JSON.stringify(request),
+  });
+}
+
+export async function getAnalysisResults() {
+  return fetchApi('/analysis/results');
+}

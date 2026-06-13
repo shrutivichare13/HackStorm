@@ -46,17 +46,6 @@ USERS = {
 # ============ PRODUCTS (User Purchased) ============
 PRODUCTS = [
     {
-        "id": "prod_001",
-        "name": "Sony WH-1000XM5 Wireless Headphones",
-        "category": "Electronics",
-        "original_price": 349.99,
-        "image_url": "https://images.unsplash.com/photo-1505740420928-5e560c06d30e?w=400",
-        "description": "Industry-leading noise canceling with premium sound quality",
-        "purchase_date": "2026-05-15",
-        "order_id": "ORD-2026-001",
-        "return_eligible": True
-    },
-    {
         "id": "prod_002",
         "name": "Nike Air Max 270 Running Shoes",
         "category": "Clothing",
@@ -68,93 +57,16 @@ PRODUCTS = [
         "return_eligible": True
     },
     {
-        "id": "prod_003",
-        "name": "Instant Pot Duo 7-in-1 Electric Pressure Cooker",
-        "category": "Home & Kitchen",
-        "original_price": 89.99,
-        "image_url": "https://images.unsplash.com/photo-1556909114-f6e7ad7d3136?w=400",
-        "description": "Multi-use programmable pressure cooker, slow cooker, rice cooker",
-        "purchase_date": "2026-04-10",
-        "order_id": "ORD-2026-003",
-        "return_eligible": True
-    },
-    {
-        "id": "prod_004",
-        "name": "Patagonia Better Sweater Fleece Jacket",
-        "category": "Clothing",
-        "original_price": 139.00,
-        "image_url": "https://images.unsplash.com/photo-1591047139829-d91aecb6caea?w=400",
-        "description": "Fair Trade Certified sewn polyester fleece jacket",
-        "purchase_date": "2026-05-01",
-        "order_id": "ORD-2026-004",
-        "return_eligible": True
-    },
-    {
-        "id": "prod_005",
-        "name": "Apple iPad Air M2 (2024)",
-        "category": "Electronics",
-        "original_price": 599.00,
-        "image_url": "https://images.unsplash.com/photo-1544244015-0df4b3ffc6b0?w=400",
-        "description": "11-inch Liquid Retina display with M2 chip",
-        "purchase_date": "2026-03-25",
-        "order_id": "ORD-2026-005",
-        "return_eligible": True
-    },
-    {
         "id": "prod_006",
         "name": "Hydro Flask 32oz Water Bottle",
         "category": "Sports & Outdoors",
         "original_price": 44.95,
-        "image_url": "https://images.unsplash.com/photo-1602143407151-7111542de6e8?w=400",
+        "image_url": "/hydro-flask.jpg",
         "description": "TempShield insulation keeps drinks cold 24hrs or hot 12hrs",
         "purchase_date": "2026-05-28",
         "order_id": "ORD-2026-006",
         "return_eligible": True
     },
-    {
-        "id": "prod_007",
-        "name": "Dyson V15 Detect Cordless Vacuum",
-        "category": "Home & Kitchen",
-        "original_price": 749.99,
-        "image_url": "https://images.unsplash.com/photo-1558618666-fcd25c85f82e?w=400",
-        "description": "Laser reveals microscopic dust, piezo sensor counts particles",
-        "purchase_date": "2026-04-20",
-        "order_id": "ORD-2026-007",
-        "return_eligible": True
-    },
-    {
-        "id": "prod_008",
-        "name": "Kindle Paperwhite Signature Edition",
-        "category": "Books",
-        "original_price": 189.99,
-        "image_url": "https://images.unsplash.com/photo-1507842217343-583bb7270b66?w=400",
-        "description": "6.8-inch display, wireless charging, 32GB storage",
-        "purchase_date": "2026-05-10",
-        "order_id": "ORD-2026-008",
-        "return_eligible": True
-    },
-    {
-        "id": "prod_009",
-        "name": "LEGO Technic Porsche 911 GT3 RS",
-        "category": "Toys & Games",
-        "original_price": 179.99,
-        "image_url": "https://images.unsplash.com/photo-1587654780291-39c9404d7dd0?w=400",
-        "description": "2,704 pieces, 1:8 scale model with working gearbox",
-        "purchase_date": "2026-04-15",
-        "order_id": "ORD-2026-009",
-        "return_eligible": True
-    },
-    {
-        "id": "prod_010",
-        "name": "Dyson Airwrap Complete Long",
-        "category": "Beauty",
-        "original_price": 599.99,
-        "image_url": "https://images.unsplash.com/photo-1522338242992-e1a54571a9f7?w=400",
-        "description": "Multi-styler with Coanda airflow technology",
-        "purchase_date": "2026-05-05",
-        "order_id": "ORD-2026-010",
-        "return_eligible": True
-    }
 ]
 
 # ============ MARKETPLACE LISTINGS ============

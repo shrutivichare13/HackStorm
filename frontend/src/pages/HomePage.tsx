@@ -5,6 +5,7 @@
 
 import { Link } from 'react-router-dom';
 import { Recycle, Shield, Leaf, TrendingUp, RotateCcw, Store } from 'lucide-react';
+import ImpactJourneyDiagram from '../components/ImpactJourneyDiagram';
 
 const features = [
   {
@@ -93,6 +94,9 @@ export default function HomePage() {
           </div>
         </div>
       </section>
+
+      {/* Impact Journey Diagram — FEATURE E */}
+      <ImpactJourneyDiagram />
 
       {/* Features Grid */}
       <section className="max-w-7xl mx-auto px-4 py-16">

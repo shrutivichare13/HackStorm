@@ -8,7 +8,9 @@
 import { useEffect, useState } from 'react';
 import { useStore } from '../store/useStore';
 import GradeBadge from '../components/GradeBadge';
-import { ShieldCheck, Tag, Search, SlidersHorizontal, CheckCircle, Leaf } from 'lucide-react';
+import DecisionTransparencyPanel from '../components/DecisionTransparencyPanel';
+import type { MarketplaceListing } from '../types';
+import { ShieldCheck, Tag, Search, SlidersHorizontal, CheckCircle, Leaf, X } from 'lucide-react';
 
 const categories = ['All', 'Electronics', 'Home & Kitchen', 'Clothing', 'Books'];
 
@@ -16,6 +18,8 @@ export default function MarketplacePage() {
   const { marketplaceListings, fetchMarketplace, loadingMarketplace } = useStore();
   const [selectedCategory, setSelectedCategory] = useState('All');
   const [searchQuery, setSearchQuery] = useState('');
+  // FEATURE A: transparency modal state
+  const [transparencyListing, setTransparencyListing] = useState<MarketplaceListing | null>(null);
 
   useEffect(() => {
     const filters: Record<string, string> = {};
@@ -84,10 +88,14 @@ export default function MarketplacePage() {
                   className="w-full h-48 object-cover rounded-lg"
                 />
                 {listing.trust_badge && (
-                  <div className="absolute top-2 right-2 bg-white/90 backdrop-blur-sm px-2 py-1 rounded-full flex items-center gap-1">
+                  <button
+                    onClick={() => setTransparencyListing(listing)}
+                    title="View AI Decision Transparency"
+                    className="absolute top-2 right-2 bg-white/90 backdrop-blur-sm px-2 py-1 rounded-full flex items-center gap-1 hover:bg-white hover:shadow transition-shadow cursor-pointer"
+                  >
                     <ShieldCheck className="h-3.5 w-3.5 text-green-600" />
                     <span className="text-xs font-medium text-green-700">Certified</span>
-                  </div>
+                  </button>
                 )}
               </div>
 
@@ -160,6 +168,40 @@ export default function MarketplacePage() {
       {filteredListings.length === 0 && !loadingMarketplace && (
         <div className="text-center py-12">
           <p className="text-gray-500">No products found matching your criteria.</p>
+        </div>
+      )}
+
+      {/* FEATURE A: Decision Transparency Modal */}
+      {transparencyListing && (
+        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
+          <div className="bg-white rounded-xl p-6 w-full max-w-md max-h-[90vh] overflow-y-auto">
+            <div className="flex items-center justify-between mb-4">
+              <h2 className="text-lg font-semibold">{transparencyListing.product_name}</h2>
+              <button onClick={() => setTransparencyListing(null)} className="text-gray-400 hover:text-gray-600">
+                <X className="h-5 w-5" />
+              </button>
+            </div>
+            <DecisionTransparencyPanel
+              conditionScore={transparencyListing.condition_score}
+              grade={transparencyListing.condition_grade}
+              category={transparencyListing.category}
+              resaleValue={transparencyListing.resale_price}
+              refurbishCost={
+                transparencyListing.gradingDetails?.refurbishCost ??
+                Math.round(transparencyListing.original_price * 0.15)
+              }
+              recycleValue={
+                transparencyListing.gradingDetails?.recycleValue ??
+                Math.round(transparencyListing.original_price * 0.08)
+              }
+              disposition={
+                transparencyListing.condition_grade === 'A' || transparencyListing.condition_grade === 'B'
+                  ? 'Resell'
+                  : 'Refurbish'
+              }
+              demandScore={transparencyListing.gradingDetails?.demandScore ?? 90}
+            />
+          </div>
         </div>
       )}
     </div>
