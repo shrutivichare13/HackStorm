@@ -158,7 +158,3 @@ Amazon-inspired color palette:
 - Orange: `#FF9900`
 - Clean modern responsive layout
 - Mobile-first approach with Tailwind CSS
-
-## License
-
-MIT
